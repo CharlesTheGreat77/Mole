@@ -1,79 +1,81 @@
 package scrape
 
 import (
-	"mole/utils"
 	"fmt"
 	"log"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gocolly/colly/v2"
+	"mole/utils"
 )
 
-// function that uses colly to initially scrape for URLs
+// EndPoint uses colly to scrape URLs from a given domain.
 func EndPoint(domain *string, agent *string, headers *string, proxies *string, threads *int, depth *int, timeout *int) {
-	var visited []string
-
-	host, err := url.Parse(*domain)
+	hostURL, err := url.Parse(*domain)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("invalid domain: %v", err) // Use log.Fatalf for non-recoverable errors
 	}
+	baseDomain := hostURL.Hostname()
 
 	var customHeaders []string
 	if *headers != "" {
 		customHeaders, err = utils.ReadFile(*headers)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("failed to read headers file: %v", err)
 		}
 	}
 
-	c := createCollector(host.Hostname(), *depth, *threads, *proxies, time.Duration(*timeout)*time.Second)
+	c := createCollector(baseDomain, *depth, *threads, *proxies, time.Duration(*timeout)*time.Second)
 	setCollyBehavior(c, *agent, customHeaders)
 
-	// regex for paths in HTML content
-	regexPatterns := []string{
-		`http://(/?%3C=(%22|%27| + "" + ))\/[a-zA-Z0-9_?&=\/\-#\.]*[%22|'|%60]`,
-		`http://(/?%3C=(%22|%27| + "" + ))\/[a-zA-Z0-9_?&=\/\-\#\.]*([%22|\'|%60])`,
+	visited := make(map[string]bool) // use a map for efficient visited tracking
+
+	// helper function to check if a URL should be visited
+	shouldVisit := func(link string) bool {
+		if link == "" {
+			return false
+		}
+		u, err := url.Parse(link)
+		if err != nil {
+			return false // skip invalid URLs
+		}
+		hostname := u.Hostname()
+		if hostname == baseDomain || strings.HasSuffix(hostname, "."+baseDomain) {
+			if !visited[link] {
+				visited[link] = true
+				return true
+			}
+		}
+		return false
 	}
 
-	regexes := make([]*regexp.Regexp, len(regexPatterns))
-	for i, pattern := range regexPatterns {
-		regex, err := regexp.Compile(pattern)
-		if err != nil {
-			log.Fatal(err)
+	process := func(e *colly.HTMLElement, urlAttr string) {
+		link := e.Request.AbsoluteURL(e.Attr(urlAttr))
+		if shouldVisit(link) {
+			fmt.Println(link)
+			e.Request.Visit(link)
 		}
-		regexes[i] = regex
 	}
 
 	c.OnHTML("form[action]", func(e *colly.HTMLElement) {
-		link := e.Request.AbsoluteURL(e.Attr("action"))
-		if !utils.HasVisited(link, visited) {
-			visited = append(visited, link)
-			fmt.Println(link)
-			e.Request.Visit(link)
-		}
+		process(e, "action")
 	})
 
-	c.OnHTML("a[href], link[href], script[src], iframe[src], img[src]", func(e *colly.HTMLElement) {
-		link := e.Request.AbsoluteURL(e.Attr("href"))
-		if link == "" {
-			link = e.Request.AbsoluteURL(e.Attr("src"))
-		}
-		if link != "" && !utils.HasVisited(link, visited) {
-			visited = append(visited, link)
-			fmt.Println(link)
-			e.Request.Visit(link)
-		}
+	c.OnHTML("a[href], link[href]", func(e *colly.HTMLElement) {
+		process(e, "href")
+	})
+
+	c.OnHTML("script[src], iframe[src], img[src]", func(e *colly.HTMLElement) {
+		process(e, "src")
 	})
 
 	c.OnHTML("meta[http-equiv=refresh][content]", func(e *colly.HTMLElement) {
 		content := e.Attr("content")
 		if urlIdx := strings.Index(content, "url="); urlIdx != -1 {
 			link := e.Request.AbsoluteURL(content[urlIdx+4:])
-			if !utils.HasVisited(link, visited) {
-				visited = append(visited, link)
+			if shouldVisit(link) {
 				fmt.Println(link)
 				e.Request.Visit(link)
 			}
@@ -82,8 +84,7 @@ func EndPoint(domain *string, agent *string, headers *string, proxies *string, t
 
 	err = c.Visit(*domain)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to start crawl: %v", err) // Use log.Fatalf
 	}
-
 	c.Wait()
 }

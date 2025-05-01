@@ -1,9 +1,9 @@
 package main
 
 import (
-    "mole/cmd"
+	"mole/cmd"
 )
 
 func main() {
-    cmd.Execute()
+	cmd.Execute()
 }
