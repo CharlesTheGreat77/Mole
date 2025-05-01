@@ -15,7 +15,7 @@ import (
 func EndPoint(domain *string, agent *string, headers *string, proxies *string, threads *int, depth *int, timeout *int) {
 	hostURL, err := url.Parse(*domain)
 	if err != nil {
-		log.Fatalf("invalid domain: %v", err) // Use log.Fatalf for non-recoverable errors
+		log.Fatalf("invalid domain: %v", err)
 	}
 	baseDomain := hostURL.Hostname()
 
