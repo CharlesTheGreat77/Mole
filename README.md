@@ -67,14 +67,8 @@ Here's a quick example `./internal/scrape/crawl.go`:
 ```go
 // selector to search for
 c.OnHTML("form[action]", func(e *colly.HTMLElement) {
-    // extract URL in selector
-      link := e.Request.AbsoluteURL(e.Attr("action"))
-    // prevent duplicate visit(s) and entries
-      if !utils.HasVisited(link, visited) {
-            visited = append(visited, link)
-            fmt.Println(link)
-            e.Request.Visit(link)
-      }
+    // process the URL
+		process(e, "action")
 })
 ```
 → See <a href="https://go-colly.org/docs/introduction/start/">Colly Docs</a> for more details.
