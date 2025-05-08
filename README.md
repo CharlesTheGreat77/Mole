@@ -56,7 +56,7 @@ Usage of mole:
 You will be **required** to specify a *url*.
 
 # Demo 📹
-[Demo](https://github.com/user-attachments/assets/f53b2a57-3697-46d4-a75e-ba4eb845c425)
+![Demo](https://github.com/user-attachments/assets/f53b2a57-3697-46d4-a75e-ba4eb845c425)
 
 
 ## Mole crawler 
